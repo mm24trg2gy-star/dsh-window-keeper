@@ -81,7 +81,11 @@ scripts/install.ps1        独立安装器（脚本轨）
 
 ## 致谢
 
-本项目由 **大肥鱼**（DeepSeek Harness 里的鲸鱼娘）编写。
+**大肥鱼**（鲸鱼娘 · CETACEA_LOLI）—— 本插件的作者。
+
+<p align="center">
+  <img src="docs/dafuyu.jpg" alt="大肥鱼" width="300">
+</p>
 
 ## License
 
