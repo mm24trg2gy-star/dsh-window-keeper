@@ -20,7 +20,16 @@
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "dsh": ">=0.2.0-rc.2"
+  },
+  "author": "mm24trg2gy-star",
+  "homepage": "https://github.com/mm24trg2gy-star/dsh-window-keeper#readme",
+  "bugs": {
+    "url": "https://github.com/mm24trg2gy-star/dsh-window-keeper/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "dsh",
