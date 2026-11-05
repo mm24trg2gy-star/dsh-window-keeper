@@ -79,6 +79,10 @@ assets/window-keeper.ps1   真正的窗口逻辑
 scripts/install.ps1        独立安装器（脚本轨）
 ```
 
+## 致谢
+
+- **大肥鱼**：这个项目从头到尾是她动的手——从翻 `app.asar` 确认 `createWindow()` 里写死的 `1280×820`，到守护脚本、插件外壳、npm 发布、市场收录 PR。她坚持的两条也留在了代码里：窗口逻辑必须独立于客户端版本；每次 apply 都要留日志。
+
 ## License
 
 MIT
