@@ -1,0 +1,6 @@
+node_modules/
+*.log
+keeper.pid
+window-state.json
+config.json
+.DS_Store

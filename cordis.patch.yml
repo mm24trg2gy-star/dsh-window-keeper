@@ -1,0 +1,6 @@
+# dsh-window-keeper — bundle patch
+# 只声明 Host 半部；Web 半部由 package.json 的 dsh.client 自动组装。
+# 装：dsh plugin --profile desktop add <this-package>
+- insert:
+    - id: dsh-window-keeper
+      name: dsh-window-keeper

@@ -1,0 +1,46 @@
+{
+  "name": "dsh-window-keeper",
+  "version": "0.1.0",
+  "description": "记住并恢复 DeepSeek Harness 桌面窗口的位置、大小与最大化状态。双轨设计：脚本本体不绑客户端版本，插件外壳只负责安装、自启与开关。",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "locale",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "window",
+    "bounds",
+    "desktop"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mm24trg2gy-star/dsh-window-keeper.git"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}
