@@ -83,6 +83,12 @@ scripts/install.ps1        独立安装器（脚本轨）
 
 - **大肥鱼**：这个项目从头到尾是她动的手——从翻 `app.asar` 确认 `createWindow()` 里写死的 `1280×820`，到守护脚本、插件外壳、npm 发布、市场收录 PR。她坚持的两条也留在了代码里：窗口逻辑必须独立于客户端版本；每次 apply 都要留日志。
 
+<p align="center">
+  <img src="docs/dafuyu.jpg" alt="大肥鱼" width="300">
+  <br>
+  <sub>大肥鱼 · 定妆照</sub>
+</p>
+
 ## License
 
 MIT
