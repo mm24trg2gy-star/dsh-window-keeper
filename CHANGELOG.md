@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-11-06
+
+- 修复：守护进程改为经 WMI 创建（`Win32_Process.Create`）。`child_process.spawn` 带 `detached: true` 时，Windows 上的 powershell 会立刻退出且不留日志——0.1.1 里守护仍然起不来就是这个原因。
+- 修复：宿主卸载（DSH 重启）时不再停守护进程。之前每次重启都会 `stop pid`，窗口记忆在重启后必然失效。
+- 修复：读取 `window-state.json` 时去掉 BOM，设置页不会再显示「还没有记录」。
+
 ## 0.1.1 — 2026-11-06
 
 - 修复：主窗口识别改为「标题以 `DeepSeek Harness` 结尾、面积最大、且不小于 800×600」。启动画面和小窗口不再被当成主窗口（0.1.0 里会把窗口缩回默认尺寸）。
