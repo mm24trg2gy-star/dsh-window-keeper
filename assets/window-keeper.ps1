@@ -1,9 +1,10 @@
-# window-keeper.ps1 — 记住并恢复 DSH 桌面窗口的位置、大小、最大化状态
-# 设计原则：只依赖 Win32 + 文件系统，不依赖 DSH 版本、不调用任何 DSH 内部接口。
-# 用法：
-#   powershell -NoProfile -ExecutionPolicy Bypass -File window-keeper.ps1          # 常驻看守
-#   powershell -NoProfile -ExecutionPolicy Bypass -File window-keeper.ps1 -Apply   # 只应用一次后退出
-# 同目录：config.json（enabled）、window-state.json、keeper.pid、keeper.log
+# window-keeper.ps1 - remember and restore the DSH desktop window geometry.
+# Design: Win32 + filesystem only. No dependency on the DSH client version.
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File window-keeper.ps1        # watch loop
+#   powershell -NoProfile -ExecutionPolicy Bypass -File window-keeper.ps1 -Apply # apply once, exit
+# Files beside this script: config.json, window-state.json, keeper.pid, keeper.log
+# Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
 
 param([switch]$Apply)
 
@@ -14,12 +15,16 @@ $ConfigFile= Join-Path $Root 'config.json'
 $PidFile   = Join-Path $Root 'keeper.pid'
 $LogFile   = Join-Path $Root 'keeper.log'
 
+# Minimum geometry of the real main window. Splash / toast / helper windows are
+# much smaller and must never be treated as "the window".
+$MinWidth  = 800
+$MinHeight = 600
+
 function Write-Log($msg) {
   $line = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss') + ' ' + $msg
   Add-Content -Path $LogFile -Value $line -Encoding UTF8
 }
 
-# ---- 配置：enabled=false 时直接退出（插件壳的开关就是改这里）----
 $enabled = $true
 if (Test-Path $ConfigFile) {
   try { $cfg = Get-Content $ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json; if ($null -ne $cfg.enabled) { $enabled = [bool]$cfg.enabled } } catch {}
@@ -28,6 +33,7 @@ if (-not $Apply -and -not $enabled) { exit 0 }
 
 Add-Type -TypeDefinition @"
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 public class DshWin {
@@ -39,24 +45,34 @@ public class DshWin {
   [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
   [StructLayout(LayoutKind.Sequential)] public struct WINDOWPLACEMENT {
     public int length; public int flags; public int showCmd;
     public POINT ptMinPosition; public POINT ptMaxPosition; public RECT rcNormalPosition;
   }
-  public static IntPtr Find() {
-    IntPtr found = IntPtr.Zero;
+  /** Largest visible window whose title ends with "DeepSeek Harness". */
+  public static IntPtr Find(int minW, int minH) {
+    IntPtr best = IntPtr.Zero;
+    long bestArea = 0;
     EnumWindows(delegate(IntPtr h, IntPtr l) {
       if (!IsWindowVisible(h)) return true;
       int len = GetWindowTextLength(h);
       if (len == 0) return true;
       StringBuilder sb = new StringBuilder(len + 2);
       GetWindowText(h, sb, sb.Capacity);
-      if (sb.ToString().EndsWith("DeepSeek Harness")) { found = h; return false; }
+      if (!sb.ToString().EndsWith("DeepSeek Harness")) return true;
+      RECT r;
+      if (!GetWindowRect(h, out r)) return true;
+      int w = r.Right - r.Left;
+      int hh = r.Bottom - r.Top;
+      if (w < minW || hh < minH) return true;
+      long area = (long)w * hh;
+      if (area > bestArea) { bestArea = area; best = h; }
       return true;
     }, IntPtr.Zero);
-    return found;
+    return best;
   }
   public static WINDOWPLACEMENT Placement(IntPtr h) {
     WINDOWPLACEMENT p = new WINDOWPLACEMENT();
@@ -108,7 +124,7 @@ function Apply-State($hwnd, $s) {
 Add-Type -AssemblyName System.Windows.Forms
 
 if ($Apply) {
-  $hwnd = [DshWin]::Find()
+  $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
   if ($hwnd -eq [IntPtr]::Zero) { Write-Log 'apply: window not found'; exit 1 }
   $s = Read-State
   if (-not (State-Valid $s)) { Write-Log 'apply: no valid state'; exit 2 }
@@ -116,7 +132,7 @@ if ($Apply) {
   exit 0
 }
 
-# 单实例：已有 keeper 在跑就退出
+# single instance
 if (Test-Path $PidFile) {
   try {
     $old = [int](Get-Content $PidFile -Raw)
@@ -135,7 +151,7 @@ $lastRect = ''
 $lastMax = $null
 
 while ($true) {
-  $hwnd = [DshWin]::Find()
+  $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
   if ($hwnd -eq [IntPtr]::Zero) {
     if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed'; $currentHwnd = [IntPtr]::Zero }
     Start-Sleep -Milliseconds 900

@@ -47,12 +47,11 @@ const ctx = {
 apply(ctx)
 
 assert.ok(fs.existsSync(path.join(dataDir, 'window-keeper.ps1')), '脚本未铺设')
-assert.ok(fs.existsSync(path.join(dataDir, 'start-hidden.vbs')), '启动器未生成')
+assert.ok(!fs.existsSync(path.join(dataDir, 'start-hidden.vbs')), '不应再生成 vbs')
 assert.ok(fs.existsSync(path.join(dataDir, 'config.json')), '配置未生成')
 assert.equal(routes.length, 3, '应注册 3 条路由')
-assert.ok(fs.existsSync(path.join(dataDir, 'window-keeper.ps1')))
 // autostart=false 时不应写启动项
-assert.ok(!fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.vbs')))
+assert.ok(!fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.lnk')))
 
 function fakeRes() {
   const res = { code: 0, body: '' }
@@ -95,7 +94,7 @@ await cfgRoute.handler(fakeReq('POST', JSON.stringify({ patch: { autostart: true
 const state2 = JSON.parse(res2.body)
 assert.equal(state2.ok, true)
 assert.equal(state2.config.autostart, true)
-assert.ok(fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.vbs')), '自启项未创建')
+assert.ok(fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.lnk')), '自启项未创建')
 assert.equal(state2.config.enabled, false, 'enabled 不应被意外打开')
 
 // POST /window-keeper/action：未知 action 应 400

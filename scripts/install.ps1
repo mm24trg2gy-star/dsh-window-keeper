@@ -1,8 +1,10 @@
-# install.ps1 — 安装/卸载 DSH 窗口记忆（脚本轨，不依赖 DSH 插件）
-# 用法：
+# install.ps1 - install / uninstall dsh-window-keeper (script track, no DSH plugin needed)
+# Usage:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 #   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Uninstall
 #   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoAutostart
+# Keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less files as ANSI.
+
 param(
   [string]$Dir = (Join-Path $env:LOCALAPPDATA 'dsh-window-keeper'),
   [switch]$NoAutostart,
@@ -11,24 +13,28 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $StartupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
-$VbsPath = Join-Path $StartupDir 'dsh-window-keeper.vbs'
+$LnkPath    = Join-Path $StartupDir 'dsh-window-keeper.lnk'
+$OldVbs     = Join-Path $StartupDir 'dsh-window-keeper.vbs'
+$PsExe      = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 function Stop-Keeper {
-  if (Test-Path (Join-Path $Dir 'keeper.pid')) {
+  $pidFile = Join-Path $Dir 'keeper.pid'
+  if (Test-Path $pidFile) {
     try {
-      $old = [int](Get-Content (Join-Path $Dir 'keeper.pid') -Raw)
+      $old = [int](Get-Content $pidFile -Raw)
       if ($old -gt 0) { Stop-Process -Id $old -Force -ErrorAction SilentlyContinue }
     } catch {}
   }
   Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like "*$Dir*window-keeper.ps1*" -and $_.ProcessId -ne $PID } |
+    Where-Object { $_.CommandLine -like '*window-keeper.ps1*' -and $_.ProcessId -ne $PID } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
 if ($Uninstall) {
   Stop-Keeper
-  if (Test-Path $VbsPath) { Remove-Item $VbsPath -Force }
-  Write-Host "已卸载：守护进程已停、启动项已移除。目录保留在 $Dir（确认无误后可手动删除）。" -ForegroundColor Yellow
+  Remove-Item $LnkPath -Force -ErrorAction SilentlyContinue
+  Remove-Item $OldVbs -Force -ErrorAction SilentlyContinue
+  Write-Host "Uninstalled: keeper stopped, autostart entry removed. Files kept in $Dir." -ForegroundColor Yellow
   return
 }
 
@@ -37,30 +43,32 @@ Copy-Item (Join-Path $PSScriptRoot '..\assets\window-keeper.ps1') (Join-Path $Di
 
 $cfgPath = Join-Path $Dir 'config.json'
 if (-not (Test-Path $cfgPath)) {
-  '{ "enabled": true }' | Set-Content $cfgPath -Encoding UTF8
+  '{ "enabled": true, "autostart": true }' | Set-Content $cfgPath -Encoding UTF8
 }
 
-$vbs = @"
-' 由 dsh-window-keeper 自动生成，请勿手改
-Set sh = CreateObject("WScript.Shell")
-sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$Dir\window-keeper.ps1""", 0, False
-"@
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText((Join-Path $Dir 'start-hidden.vbs'), $vbs, $utf8NoBom)
+# Autostart uses a .lnk, not a .vbs: WScript reads BOM-less .vbs as ANSI, so a
+# non-ASCII user name in the path turns into mojibake and the script never runs.
+Remove-Item $OldVbs -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $Dir 'start-hidden.vbs') -Force -ErrorAction SilentlyContinue
 
 if (-not $NoAutostart) {
   New-Item -ItemType Directory -Force -Path $StartupDir | Out-Null
-  [System.IO.File]::WriteAllText($VbsPath, $vbs, $utf8NoBom)
+  $ws = New-Object -ComObject WScript.Shell
+  $sc = $ws.CreateShortcut($LnkPath)
+  $sc.TargetPath = $PsExe
+  $sc.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Dir\window-keeper.ps1`""
+  $sc.WindowStyle = 7
+  $sc.Save()
 }
 
 Stop-Keeper
-Start-Process wscript.exe -ArgumentList "`"$(Join-Path $Dir 'start-hidden.vbs')`"" -WindowStyle Hidden
+Start-Process $PsExe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', (Join-Path $Dir 'window-keeper.ps1')) -WindowStyle Hidden
 
 Write-Host ""
-Write-Host "安装完成：" -ForegroundColor Green
-Write-Host "  程序目录 : $Dir"
-Write-Host "  自启项   : $(if ($NoAutostart) { '未安装（-NoAutostart）' } else { $VbsPath })"
-Write-Host "  配置     : $cfgPath  （enabled: false 可停用）"
-Write-Host "  日志     : $(Join-Path $Dir 'keeper.log')"
+Write-Host "Installed:" -ForegroundColor Green
+Write-Host "  program dir : $Dir"
+Write-Host "  autostart   : $(if ($NoAutostart) { 'skipped (-NoAutostart)' } else { $LnkPath })"
+Write-Host "  config      : $cfgPath  (set enabled:false to pause)"
+Write-Host "  log         : $(Join-Path $Dir 'keeper.log')"
 Write-Host ""
-Write-Host "现在把 DSH 窗口拖到你想要的大小，下次启动就会回到这个尺寸。" -ForegroundColor Cyan
+Write-Host "Resize the DSH window now; the next launch will restore this size." -ForegroundColor Cyan
