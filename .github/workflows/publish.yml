@@ -1,0 +1,33 @@
+# 推 v* 标签时自动发布到 npm，使用 Trusted Publishing（OIDC），不需要任何 token。
+# 前置：在 npm 包页面 Settings → Trusted Publisher 里登记
+#   GitHub Actions / mm24trg2gy-star / dsh-window-keeper / publish.yml
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing 需要 npm >= 11.5.1
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Smoke test
+        run: node tests/host.smoke.mjs
+
+      - name: Publish
+        run: npm publish --provenance --access public
