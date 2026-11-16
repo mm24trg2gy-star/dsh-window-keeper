@@ -97,8 +97,9 @@ await cfgRoute.handler(fakeReq('POST', JSON.stringify({ patch: { autostart: true
 const state2 = JSON.parse(res2.body)
 assert.equal(state2.ok, true)
 assert.equal(state2.config.autostart, true)
-assert.ok(fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.lnk')), '自启项未创建')
 assert.equal(state2.config.enabled, false, 'enabled 不应被意外打开')
+// 插件不再创建登录自启项（守护跟随宿主进程），旧的 .lnk 应被清掉
+assert.ok(!fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.lnk')), '不应再创建自启项')
 
 // 间隔下限 30 秒
 const res2b = fakeRes()

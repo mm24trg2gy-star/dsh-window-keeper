@@ -60,11 +60,13 @@ dsh plugin --profile desktop add dsh-window-keeper
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `enabled` | `true` | `false` 时守护启动即退出，不会动窗口 |
-| `autostart` | `true` | 是否往「启动」文件夹放快捷方式 |
+| `autostart` | `true` | 兼容旧版保留；现在守护跟随 DSH 进程，不再写登录自启项 |
 | `watchdogSeconds` | `60` | 看门狗间隔；`0` 关闭；小于 `30` 自动夹到 `30` |
 | `watchdogOnce` | `false` | `true` = 只在启动后检查一次就停，不在后台常驻 |
 
 看门狗只做一件事：读 pid、问一句进程还活着没；发现没了才拉起守护。**不联网、不调模型、不耗 token**，定时器本身也不占内存。
+
+守护进程由宿主直接 `spawn`（带 `CREATE_NO_WINDOW`），**不会弹控制台窗口**；它跟着 DSH 进程走——客户端关掉它就结束，下次启动插件再拉起来。
 
 想完全不留后台检查：把 `watchdogSeconds` 设为 `0`，或者勾上「只检查一次」——后者会在启动后检查一遍即停。
 

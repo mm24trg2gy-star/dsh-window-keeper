@@ -45,6 +45,7 @@ public class DshWin {
   [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -151,32 +152,41 @@ $lastRect = ''
 $lastMax = $null
 
 while ($true) {
-  $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
-  if ($hwnd -eq [IntPtr]::Zero) {
-    if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed'; $currentHwnd = [IntPtr]::Zero }
-    Start-Sleep -Milliseconds 900
-    continue
-  }
-
-  if ($hwnd -ne $currentHwnd) {
-    $currentHwnd = $hwnd
-    Start-Sleep -Milliseconds 1200
-    $s = Read-State
-    if ((State-Valid $s) -and ($hwnd -ne $appliedHwnd)) {
-      Apply-State $hwnd $s
-      $appliedHwnd = $hwnd
+  try {
+    $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
+    if ($hwnd -eq [IntPtr]::Zero) {
+      if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed'; $currentHwnd = [IntPtr]::Zero }
+      Start-Sleep -Milliseconds 900
+      continue
     }
-  }
 
-  $p = [DshWin]::Placement($hwnd)
-  if ($p.showCmd -ne 2) {
-    $rect = ('{0},{1},{2},{3}' -f $p.rcNormalPosition.Left, $p.rcNormalPosition.Top, $p.rcNormalPosition.Right, $p.rcNormalPosition.Bottom)
-    $max = ($p.showCmd -eq 3)
-    if ($rect -ne $lastRect -or $max -ne $lastMax) {
-      Save-State $p
-      $lastRect = $rect
-      $lastMax = $max
+    if ($hwnd -ne $currentHwnd) {
+      $currentHwnd = $hwnd
+      Start-Sleep -Milliseconds 1200
+      $s = Read-State
+      if ((State-Valid $s) -and ($hwnd -ne $appliedHwnd)) {
+        Apply-State $hwnd $s
+        $appliedHwnd = $hwnd
+      }
     }
+
+    # 窗口可能在两次调用之间被销毁（拖动/关闭/重建），先确认句柄还有效
+    if (-not [DshWin]::IsWindow($hwnd)) { $currentHwnd = [IntPtr]::Zero; continue }
+
+    $p = [DshWin]::Placement($hwnd)
+    if ($p.showCmd -ne 2) {
+      $rect = ('{0},{1},{2},{3}' -f $p.rcNormalPosition.Left, $p.rcNormalPosition.Top, $p.rcNormalPosition.Right, $p.rcNormalPosition.Bottom)
+      $max = ($p.showCmd -eq 3)
+      if ($rect -ne $lastRect -or $max -ne $lastMax) {
+        Save-State $p
+        $lastRect = $rect
+        $lastMax = $max
+      }
+    }
+  } catch {
+    Write-Log ("loop error: " + $_.Exception.Message)
+    $currentHwnd = [IntPtr]::Zero
+    Start-Sleep -Milliseconds 1500
   }
   Start-Sleep -Milliseconds 900
 }

@@ -16,6 +16,7 @@ $StartupDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Star
 $LnkPath    = Join-Path $StartupDir 'dsh-window-keeper.lnk'
 $OldVbs     = Join-Path $StartupDir 'dsh-window-keeper.vbs'
 $PsExe      = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$WscriptExe = Join-Path $env:SystemRoot 'System32\wscript.exe'
 
 function Stop-Keeper {
   $pidFile = Join-Path $Dir 'keeper.pid'
@@ -46,23 +47,30 @@ if (-not (Test-Path $cfgPath)) {
   '{ "enabled": true, "autostart": true }' | Set-Content $cfgPath -Encoding UTF8
 }
 
-# Autostart uses a .lnk, not a .vbs: WScript reads BOM-less .vbs as ANSI, so a
-# non-ASCII user name in the path turns into mojibake and the script never runs.
+# Launch through wscript + a UTF-16 .vbs: wscript is a GUI subsystem process, so
+# no console window flashes; UTF-16 BOM keeps a non-ASCII user name intact
+# (WScript reads BOM-less .vbs as ANSI and would mangle the path).
 Remove-Item $OldVbs -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $Dir 'start-hidden.vbs') -Force -ErrorAction SilentlyContinue
+
+$vbsPath = Join-Path $Dir 'launch-hidden.vbs'
+$vbs = "' dsh-window-keeper launcher - generated, do not edit`r`n" +
+       "CreateObject(`"WScript.Shell`").Run `"powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"`"$Dir\window-keeper.ps1`"`"`", 0, False`r`n"
+# Encoding.Unicode = UTF-16LE with BOM, which WScript understands
+[System.IO.File]::WriteAllText($vbsPath, $vbs, [System.Text.Encoding]::Unicode)
 
 if (-not $NoAutostart) {
   New-Item -ItemType Directory -Force -Path $StartupDir | Out-Null
   $ws = New-Object -ComObject WScript.Shell
   $sc = $ws.CreateShortcut($LnkPath)
-  $sc.TargetPath = $PsExe
-  $sc.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$Dir\window-keeper.ps1`""
+  $sc.TargetPath = $WscriptExe
+  $sc.Arguments = "`"$vbsPath`""
   $sc.WindowStyle = 7
   $sc.Save()
 }
 
 Stop-Keeper
-Start-Process $PsExe -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', (Join-Path $Dir 'window-keeper.ps1')) -WindowStyle Hidden
+Start-Process $WscriptExe -ArgumentList "`"$vbsPath`"" -WindowStyle Hidden
 
 Write-Host ""
 Write-Host "Installed:" -ForegroundColor Green
