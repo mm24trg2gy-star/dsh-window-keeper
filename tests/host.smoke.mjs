@@ -85,7 +85,9 @@ assert.equal(state1.ok, true)
 assert.equal(state1.installed, true)
 assert.equal(state1.running, false)
 assert.equal(state1.config.enabled, false)
-assert.equal(state1.watchdog, true, '看门狗应当已启动')
+assert.equal(state1.watchdog, false, '未启用时不应常驻看门狗')
+assert.equal(state1.config.watchdogSeconds, 60, '默认 60 秒')
+assert.equal(state1.config.watchdogOnce, false, '默认常驻模式')
 
 // POST /window-keeper/config：打开 autostart（仍保持 enabled=false，不拉进程）
 const cfgRoute = routes.find((r) => r.path === '/window-keeper/config')
@@ -97,6 +99,18 @@ assert.equal(state2.ok, true)
 assert.equal(state2.config.autostart, true)
 assert.ok(fs.existsSync(path.join(appData, 'Microsoft/Windows/Start Menu/Programs/Startup/dsh-window-keeper.lnk')), '自启项未创建')
 assert.equal(state2.config.enabled, false, 'enabled 不应被意外打开')
+
+// 间隔下限 30 秒
+const res2b = fakeRes()
+await cfgRoute.handler(fakeReq('POST', JSON.stringify({ patch: { watchdogSeconds: 1 } })), res2b)
+const state2b = JSON.parse(res2b.body)
+assert.equal(state2b.config.watchdogSeconds, 30, '小于 30 秒应被夹到 30')
+
+// 0 = 关闭
+const res2c = fakeRes()
+await cfgRoute.handler(fakeReq('POST', JSON.stringify({ patch: { watchdogSeconds: 0 } })), res2c)
+const state2c = JSON.parse(res2c.body)
+assert.equal(state2c.config.watchdogSeconds, 0, '0 表示关闭')
 
 // POST /window-keeper/action：未知 action 应 400
 const actionRoute = routes.find((r) => r.path === '/window-keeper/action')
