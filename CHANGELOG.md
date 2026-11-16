@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 — 2026-11-16
+
+- 新增：**看门狗**。宿主活着时每 60 秒确认一次守护进程，掉了就自己补一次，日志记 `watchdog: keeper missing, restarting`；`enabled=false` 时不动。
+- 新增：README 顶部示意图、仓库图标 `docs/icon.png`、`screenshots.json`（市场详情页展示用）。
+- 修复：`startKeeper` 支持跳过资源同步，看门狗拉起时不再重复写文件/重建快捷方式。
+
 ## 0.1.2 — 2026-11-06
 
 - 修复：守护进程改为经 WMI 创建（`Win32_Process.Create`）。`child_process.spawn` 带 `detached: true` 时，Windows 上的 powershell 会立刻退出且不留日志——0.1.1 里守护仍然起不来就是这个原因。

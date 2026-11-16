@@ -1,5 +1,9 @@
 # dsh-window-keeper
 
+<p align="center">
+  <img src="docs/hero.png" alt="DSH 窗口记忆：重启后回到你离开时的尺寸" width="820">
+</p>
+
 记住 DeepSeek Harness 桌面窗口的**位置、大小和最大化状态**，下次启动回到你上次离开的地方。
 
 DSH 桌面端的建窗代码里写死了 `width: 1280, height: 820`，没有任何持久化逻辑——所以每次重启窗口都会缩回默认大小。这个项目补上这件事。

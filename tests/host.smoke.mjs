@@ -85,6 +85,7 @@ assert.equal(state1.ok, true)
 assert.equal(state1.installed, true)
 assert.equal(state1.running, false)
 assert.equal(state1.config.enabled, false)
+assert.equal(state1.watchdog, true, '看门狗应当已启动')
 
 // POST /window-keeper/config：打开 autostart（仍保持 enabled=false，不拉进程）
 const cfgRoute = routes.find((r) => r.path === '/window-keeper/config')
