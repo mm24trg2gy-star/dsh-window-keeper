@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 — 2026-11-16
+
+- 发布方式改为 **npm Trusted Publishing**（GitHub Actions + OIDC）：推 `v*` 标签即自动 `npm publish --provenance`，不再需要手工 token。
+- 无功能性改动。
+
 ## 0.1.5 — 2026-11-16
 
 - 修复：看门狗拉起守护时**不再弹控制台黑框**。启动方式从 WMI / wscript 改为宿主直接 `spawn` + `windowsHide`（`CREATE_NO_WINDOW`），实测无窗口。
