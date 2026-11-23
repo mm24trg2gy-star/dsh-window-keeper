@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.7 — 2026-11-23
+
+来自一轮代码评审的修复：
+
+- 修复：pid 文件改为 JSON（`pid` + `startedAt` + `script`），停守护前用 WMI 校验命令行——PID 被系统复用后不会再杀错进程，也不会假活导致守护永不启动。
+- 修复：新窗口第一次出现时只记基线、不写盘；`MoveWindow` 失败不再标记“已应用”。默认尺寸不会再覆盖用户尺寸。
+- 修复：主窗口识别阈值从 800 降到 520，与 Electron 的 `minWidth: 520` 一致；窗口拖窄后不会再“看不见”。
+- 修复：非最大化状态恢复时先 `SW_RESTORE`，从最大化状态切回普通尺寸才会生效。
+- 修复：`applyOnce` 改为异步子进程，点“立即恢复一次”不会再阻塞宿主事件循环。
+- 修复：看门狗间隔夹取到 30 秒–24 小时，负数视为关闭；超过 32 位会被 Node 改成 1ms 的问题消失。
+- 修复：`config.json` 改为原子写（tmp + rename），截断文件不会让开关“自己打开”。
+- 修复：动作失败不再被 `snapshot()` 的 `ok:true` 覆盖，设置页能看到真实失败。
+- 修复：脚本升级后自动重启旧守护，升级立即生效；`reinstall` 也会重启。
+- 修复：`window-keeper.ps1` 恢复为纯 ASCII，避免 PowerShell 5.1 按 ANSI 解析中文注释时崩溃。
+
 ## 0.1.6 — 2026-11-16
 
 - 发布方式改为 **npm Trusted Publishing**（GitHub Actions + OIDC）：推 `v*` 标签即自动 `npm publish --provenance`，不再需要手工 token。

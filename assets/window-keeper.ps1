@@ -15,9 +15,9 @@ $ConfigFile= Join-Path $Root 'config.json'
 $PidFile   = Join-Path $Root 'keeper.pid'
 $LogFile   = Join-Path $Root 'keeper.log'
 
-# Minimum geometry of the real main window. Splash / toast / helper windows are
-# much smaller and must never be treated as "the window".
-$MinWidth  = 800
+# Minimum geometry of the real main window. The Electron shell allows 520x600;
+# anything smaller is a splash / toast / helper window.
+$MinWidth  = 520
 $MinHeight = 600
 
 function Write-Log($msg) {
@@ -117,9 +117,12 @@ function Save-State($p) {
 }
 
 function Apply-State($hwnd, $s) {
+  # SW_RESTORE first when not maximized, otherwise moving a maximized window is a no-op
+  if (-not $s.maximized) { [void][DshWin]::ShowWindow($hwnd, 9) }
   $ok = [DshWin]::MoveWindow($hwnd, [int]$s.x, [int]$s.y, [int]$s.width, [int]$s.height, $true)
   Write-Log ("apply {0}x{1} @ {2},{3} -> MoveWindow={4}" -f $s.width, $s.height, $s.x, $s.y, $ok)
   if ($s.maximized) { Start-Sleep -Milliseconds 120; [void][DshWin]::ShowWindow($hwnd, 3) }
+  return [bool]$ok
 }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -133,52 +136,81 @@ if ($Apply) {
   exit 0
 }
 
-# single instance
-if (Test-Path $PidFile) {
-  try {
-    $old = [int](Get-Content $PidFile -Raw)
-    if ($old -gt 0 -and (Get-Process -Id $old -ErrorAction SilentlyContinue)) {
-      Write-Log "keeper already running (pid $old), exit"
-      exit 0
-    }
-  } catch {}
+# single instance: the pid file is JSON (pid + startedAt + script) and the command
+# line is checked, so a recycled PID never counts as "keeper still alive".
+function Test-KeeperPid($rec) {
+  if (-not ($rec -and $rec.pid)) { return $false }
+  $proc = Get-CimInstance Win32_Process -Filter ("ProcessId=" + [int]$rec.pid) -ErrorAction SilentlyContinue
+  if (-not $proc) { return $false }
+  if ($proc.CommandLine -notlike '*window-keeper.ps1*') { return $false }
+  return $true
 }
-Set-Content -Path $PidFile -Value $PID -Encoding ASCII
-Write-Log "keeper started (pid $PID)"
+
+$existing = $null
+if (Test-Path $PidFile) {
+  try { $existing = Get-Content $PidFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $existing = $null }
+  if ($null -ne $existing -and -not ($existing -is [pscustomobject])) { $existing = [ordered]@{ pid = [int]$existing } }
+}
+if (Test-KeeperPid $existing) {
+  Write-Log ("keeper already running (pid " + $existing.pid + "), exit")
+  exit 0
+}
+
+$startedAt = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+$record = [ordered]@{ pid = $PID; startedAt = $startedAt; script = $PSCommandPath }
+($record | ConvertTo-Json) | Set-Content -Path $PidFile -Encoding UTF8
+Write-Log ("keeper started (pid $PID)")
 
 $currentHwnd = [IntPtr]::Zero
 $appliedHwnd = [IntPtr]::Zero
 $lastRect = ''
 $lastMax = $null
+# First sight of a window only records a baseline; it never writes state, or the
+# default-size first frame would overwrite the size the user actually chose.
+$baselineRect = $null
+$baselineMax = $null
 
 while ($true) {
   try {
     $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
     if ($hwnd -eq [IntPtr]::Zero) {
-      if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed'; $currentHwnd = [IntPtr]::Zero }
+      if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed' }
+      $currentHwnd = [IntPtr]::Zero
+      $appliedHwnd = [IntPtr]::Zero
+      $baselineRect = $null
+      $baselineMax = $null
       Start-Sleep -Milliseconds 900
       continue
     }
 
     if ($hwnd -ne $currentHwnd) {
       $currentHwnd = $hwnd
+      $baselineRect = $null
+      $baselineMax = $null
       Start-Sleep -Milliseconds 1200
       $s = Read-State
       if ((State-Valid $s) -and ($hwnd -ne $appliedHwnd)) {
-        Apply-State $hwnd $s
-        $appliedHwnd = $hwnd
+        if (Apply-State $hwnd $s) { $appliedHwnd = $hwnd }
+        else { Write-Log 'apply failed; retry on next window event' }
       }
     }
 
-    # 窗口可能在两次调用之间被销毁（拖动/关闭/重建），先确认句柄还有效
+    # The handle may die between two calls (drag/close/recreate); verify it first.
     if (-not [DshWin]::IsWindow($hwnd)) { $currentHwnd = [IntPtr]::Zero; continue }
 
     $p = [DshWin]::Placement($hwnd)
     if ($p.showCmd -ne 2) {
       $rect = ('{0},{1},{2},{3}' -f $p.rcNormalPosition.Left, $p.rcNormalPosition.Top, $p.rcNormalPosition.Right, $p.rcNormalPosition.Bottom)
       $max = ($p.showCmd -eq 3)
-      if ($rect -ne $lastRect -or $max -ne $lastMax) {
+      if ($null -eq $baselineRect) {
+        $baselineRect = $rect
+        $baselineMax = $max
+        $lastRect = $rect
+        $lastMax = $max
+      } elseif ($rect -ne $baselineRect -or $max -ne $baselineMax) {
         Save-State $p
+        $baselineRect = $rect
+        $baselineMax = $max
         $lastRect = $rect
         $lastMax = $max
       }
