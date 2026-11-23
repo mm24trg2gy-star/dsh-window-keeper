@@ -165,8 +165,10 @@ function Save-State($p) {
 }
 
 function Apply-State($hwnd, $s) {
-  # Pair GetWindowPlacement/SetWindowPlacement: rcNormalPosition is the same coordinate
-  # space both ways, so multi-monitor / taskbar-position changes cannot skew the restore.
+  # Restore goes through MoveWindow (see DshWin.Restore): SetWindowPlacement clears
+  # WS_VISIBLE on Electron windows and hides the client right after login.
+  # State still stores rcNormalPosition, which MoveWindow consumes as screen coords
+  # for a normal window; maximized state is re-applied afterwards.
   $x = [int]$s.x
   $y = [int]$s.y
   $w = [int]$s.width
