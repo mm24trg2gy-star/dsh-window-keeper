@@ -175,12 +175,20 @@ function Test-KeeperPid($rec) {
   if (-not $proc) { return $false }
   if ($proc.CommandLine -notlike '*window-keeper.ps1*') { return $false }
   if ($null -ne $rec.startedAt) {
-    try {
+    $want = -1
+    if ($rec.startedAt -is [int64] -or $rec.startedAt -is [int]) {
       $want = [int64]$rec.startedAt
+    } else {
+      $rawStart = [string]$rec.startedAt
+      if ($rawStart -match '^[0-9]+$') {
+        $want = [int64]$rawStart
+      } else {
+        try { $want = [int64]([DateTimeOffset]::Parse($rawStart)).ToUnixTimeSeconds() } catch { $want = -1 }
+      }
+    }
+    if ($want -ge 0) {
       $procEpoch = [int64]([DateTimeOffset]$proc.CreationDate).ToUnixTimeSeconds()
       if ([math]::Abs($procEpoch - $want) -gt 3) { return $false }
-    } catch {
-      # Legacy records store an ISO string; the command line above already matched.
     }
   }
   return $true
