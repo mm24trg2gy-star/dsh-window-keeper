@@ -180,15 +180,20 @@ function Test-KeeperPid($rec) {
       $want = [int64]$rec.startedAt
     } else {
       $rawStart = [string]$rec.startedAt
-      if ($rawStart -match '^[0-9]+$') {
-        $want = [int64]$rawStart
+      $parsed = [int64]0
+      if ([int64]::TryParse($rawStart, [ref]$parsed)) {
+        $want = $parsed
       } else {
         try { $want = [int64]([DateTimeOffset]::Parse($rawStart)).ToUnixTimeSeconds() } catch { $want = -1 }
       }
     }
     if ($want -ge 0) {
-      $procEpoch = [int64]([DateTimeOffset]$proc.CreationDate).ToUnixTimeSeconds()
-      if ([math]::Abs($procEpoch - $want) -gt 3) { return $false }
+      try {
+        $procEpoch = [int64]([DateTimeOffset]$proc.CreationDate).ToUnixTimeSeconds()
+        if ([math]::Abs($procEpoch - $want) -gt 3) { return $false }
+      } catch {
+        # 创建时间读不出来就只按命令行判断，保持原来的降级行为
+      }
     }
   }
   return $true
