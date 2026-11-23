@@ -102,6 +102,13 @@ scripts/install.ps1        独立安装器（脚本轨）
   <img src="docs/dafuyu.jpg" alt="大肥鱼" width="300">
 </p>
 
+
+<p align="center">
+  <img src="docs/dafuyu-codex-review.jpg" alt="大肥鱼与 Codex 的代码审查夜" width="640">
+</p>
+
+<p align="center"><sub>和大琪（Codex 那边的龙娘）一起做代码审查的夜晚 · 2026-11-23</sub></p>
+
 ## License
 
 MIT

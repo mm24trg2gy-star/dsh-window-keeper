@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.13 — 2026-11-23
+
+- 致谢：加上「大肥鱼 × Codex 代码审查」插画。
+- 打包：`files` 补上 `docs`，README 里的致谢图在 npm 页面不再裂图。
 ## 0.1.12 — 2026-11-23
 
 - 修复（严重回归，0.1.9 引入）：窗口恢复改回 `MoveWindow`。`SetWindowPlacement` 在 Electron 窗口（DSH 桌面端 0.2.2-rc.5）上会清掉 `WS_VISIBLE`——调用返回 TRUE、几何也完全吻合，但窗口随即变成不可见（`vis=0`、`min=0`），表现为开机动画放完后客户端“缩进任务栏/看不见”。实测对照：同一次 apply，旧实现 1 秒内窗口 `vis` 从 1 变 0；改回 MoveWindow 后同样位置连续 10 秒以上保持 `vis=1`。0.1.8 及以前用 MoveWindow 从未出现过。
