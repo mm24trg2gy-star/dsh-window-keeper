@@ -47,6 +47,8 @@ public class DshWin {
   [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
   [DllImport("user32.dll")] public static extern bool SetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -76,23 +78,50 @@ public class DshWin {
     }, IntPtr.Zero);
     return best;
   }
+  /** Diagnostic: every window whose title contains "DeepSeek Harness", visible or not.
+      Tells "hidden" (vis=0) apart from "minimized" (vis=1 min=1) when Find misses. */
+  public static string Describe() {
+    StringBuilder outSb = new StringBuilder();
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      int len = GetWindowTextLength(h);
+      if (len == 0) return true;
+      StringBuilder sb = new StringBuilder(len + 2);
+      GetWindowText(h, sb, sb.Capacity);
+      string t = sb.ToString();
+      if (t.IndexOf("DeepSeek Harness") < 0) return true;
+      RECT r;
+      bool got = GetWindowRect(h, out r);
+      outSb.AppendFormat("[{0} vis={1} min={2} max={3} {4},{5} {6}x{7} '{8}']", (int)h,
+        IsWindowVisible(h) ? 1 : 0, IsIconic(h) ? 1 : 0, IsZoomed(h) ? 1 : 0,
+        got ? r.Left : 0, got ? r.Top : 0, got ? r.Right - r.Left : 0, got ? r.Bottom - r.Top : 0, t);
+      return true;
+    }, IntPtr.Zero);
+    return outSb.Length == 0 ? "(no titled window found)" : outSb.ToString();
+  }
+  /**
+   * Move/restore the window with MoveWindow instead of SetWindowPlacement.
+   * SetWindowPlacement clears WS_VISIBLE on Electron windows while still
+   * returning TRUE (observed 2026-11-23 on DSH 0.2.2-rc.5: apply -> vis=0),
+   * which hides the client right after login. MoveWindow is the code path the
+   * 0.1.8 restore used and never touches visibility. Leaving maximized or
+   * minimized state first keeps the normal rectangle authoritative.
+   */
   public static bool Restore(IntPtr h, int x, int y, int w, int hh, bool maximized) {
-    WINDOWPLACEMENT p = new WINDOWPLACEMENT();
-    p.length = Marshal.SizeOf(typeof(WINDOWPLACEMENT));
-    p.flags = 0;
-    p.showCmd = maximized ? 3 : 1;
-    p.rcNormalPosition.Left = x;
-    p.rcNormalPosition.Top = y;
-    p.rcNormalPosition.Right = x + w;
-    p.rcNormalPosition.Bottom = y + hh;
-    return SetWindowPlacement(h, ref p);
+    if (IsZoomed(h)) ShowWindow(h, 9);   // SW_RESTORE: leave maximized state first
+    if (IsIconic(h)) ShowWindow(h, 9);   // SW_RESTORE: leave minimized state first
+    bool ok = MoveWindow(h, x, y, w, hh, true);
+    if (!ok) return false;
+    if (maximized) ShowWindow(h, 3);     // SW_MAXIMIZE
+    return true;
   }
   public static bool Verify(IntPtr h, int x, int y, int w, int hh, bool maximized) {
-    WINDOWPLACEMENT p = Placement(h);
-    if ((p.showCmd == 3) != maximized) return false;
-    int dx = Math.Abs(p.rcNormalPosition.Left - x) + Math.Abs(p.rcNormalPosition.Top - y);
-    int dw = Math.Abs((p.rcNormalPosition.Right - p.rcNormalPosition.Left) - w) + Math.Abs((p.rcNormalPosition.Bottom - p.rcNormalPosition.Top) - hh);
-    return dx <= 2 && dw <= 2;
+    if (IsZoomed(h) != maximized) return false;
+    if (maximized) return true;
+    RECT r;
+    if (!GetWindowRect(h, out r)) return false;
+    int dx = Math.Abs(r.Left - x) + Math.Abs(r.Top - y);
+    int dw = Math.Abs((r.Right - r.Left) - w) + Math.Abs((r.Bottom - r.Top) - hh);
+    return dx <= 4 && dw <= 4;
   }
   public static WINDOWPLACEMENT Placement(IntPtr h) {
     WINDOWPLACEMENT p = new WINDOWPLACEMENT();
@@ -144,8 +173,9 @@ function Apply-State($hwnd, $s) {
   $h = [int]$s.height
   $max = [bool]$s.maximized
   if (-not [DshWin]::IsWindow($hwnd)) { Write-Log 'apply: window gone before restore'; return $false }
+  Write-Log ('apply pre-state: ' + [DshWin]::Describe())
   $ok = [DshWin]::Restore($hwnd, $x, $y, $w, $h, $max)
-  Write-Log ("apply {0}x{1} @ {2},{3} max={4} -> SetWindowPlacement={5}" -f $w, $h, $x, $y, $max, $ok)
+  Write-Log ("apply {0}x{1} @ {2},{3} max={4} -> move ok={5}" -f $w, $h, $x, $y, $max, $ok)
   if (-not $ok) { return $false }
   Start-Sleep -Milliseconds 150
   if (-not [DshWin]::Verify($hwnd, $x, $y, $w, $h, $max)) {
@@ -227,7 +257,7 @@ while ($true) {
   try {
     $hwnd = [DshWin]::Find($MinWidth, $MinHeight)
     if ($hwnd -eq [IntPtr]::Zero) {
-      if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log 'window closed' }
+      if ($currentHwnd -ne [IntPtr]::Zero) { Write-Log ('window closed; ' + [DshWin]::Describe()) }
       $currentHwnd = [IntPtr]::Zero
       $appliedHwnd = [IntPtr]::Zero
       $baselineRect = $null

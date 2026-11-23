@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.12 — 2026-11-23
+
+- 修复（严重回归，0.1.9 引入）：窗口恢复改回 `MoveWindow`。`SetWindowPlacement` 在 Electron 窗口（DSH 桌面端 0.2.2-rc.5）上会清掉 `WS_VISIBLE`——调用返回 TRUE、几何也完全吻合，但窗口随即变成不可见（`vis=0`、`min=0`），表现为开机动画放完后客户端“缩进任务栏/看不见”。实测对照：同一次 apply，旧实现 1 秒内窗口 `vis` 从 1 变 0；改回 MoveWindow 后同样位置连续 10 秒以上保持 `vis=1`。0.1.8 及以前用 MoveWindow 从未出现过。
+- 修复：查守护身份前先切 UTF-8 输出。PowerShell 5.1 按控制台代码页写 stdout，用户名/安装路径里的中文到 Node 侧变乱码，`CommandLine` 永远匹配不上，旧守护被判成“不是 keeper”→ 杀不掉 → 每点一次“重启守护”就多一个实例同时抢窗口。
+- 诊断：`apply pre-state` 和 `window closed` 现在带上候选窗口的 `vis/min/max/rect/title`，能直接区分“被隐藏”和“被最小化”。
+- 变更：成功日志从 `SetWindowPlacement=True` 改成 `move ok=True`，不再误导。
+
 ## 0.1.11 — 2026-11-23
 
 - 修复：兼容旧版 ISO 格式的 `startedAt`（JS 与 PowerShell 都换算成秒并做 3 秒容差），身份判断不再因精度差异误判。
