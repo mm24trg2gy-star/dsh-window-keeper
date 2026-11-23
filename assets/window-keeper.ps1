@@ -45,6 +45,7 @@ public class DshWin {
   [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool GetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
+  [DllImport("user32.dll")] public static extern bool SetWindowPlacement(IntPtr h, ref WINDOWPLACEMENT p);
   [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
@@ -74,6 +75,24 @@ public class DshWin {
       return true;
     }, IntPtr.Zero);
     return best;
+  }
+  public static bool Restore(IntPtr h, int x, int y, int w, int hh, bool maximized) {
+    WINDOWPLACEMENT p = new WINDOWPLACEMENT();
+    p.length = Marshal.SizeOf(typeof(WINDOWPLACEMENT));
+    p.flags = 0;
+    p.showCmd = maximized ? 3 : 1;
+    p.rcNormalPosition.Left = x;
+    p.rcNormalPosition.Top = y;
+    p.rcNormalPosition.Right = x + w;
+    p.rcNormalPosition.Bottom = y + hh;
+    return SetWindowPlacement(h, ref p);
+  }
+  public static bool Verify(IntPtr h, int x, int y, int w, int hh, bool maximized) {
+    WINDOWPLACEMENT p = Placement(h);
+    if ((p.showCmd == 3) != maximized) return false;
+    int dx = Math.Abs(p.rcNormalPosition.Left - x) + Math.Abs(p.rcNormalPosition.Top - y);
+    int dw = Math.Abs((p.rcNormalPosition.Right - p.rcNormalPosition.Left) - w) + Math.Abs((p.rcNormalPosition.Bottom - p.rcNormalPosition.Top) - hh);
+    return dx <= 2 && dw <= 2;
   }
   public static WINDOWPLACEMENT Placement(IntPtr h) {
     WINDOWPLACEMENT p = new WINDOWPLACEMENT();
@@ -117,12 +136,23 @@ function Save-State($p) {
 }
 
 function Apply-State($hwnd, $s) {
-  # SW_RESTORE first when not maximized, otherwise moving a maximized window is a no-op
-  if (-not $s.maximized) { [void][DshWin]::ShowWindow($hwnd, 9) }
-  $ok = [DshWin]::MoveWindow($hwnd, [int]$s.x, [int]$s.y, [int]$s.width, [int]$s.height, $true)
-  Write-Log ("apply {0}x{1} @ {2},{3} -> MoveWindow={4}" -f $s.width, $s.height, $s.x, $s.y, $ok)
-  if ($s.maximized) { Start-Sleep -Milliseconds 120; [void][DshWin]::ShowWindow($hwnd, 3) }
-  return [bool]$ok
+  # Pair GetWindowPlacement/SetWindowPlacement: rcNormalPosition is the same coordinate
+  # space both ways, so multi-monitor / taskbar-position changes cannot skew the restore.
+  $x = [int]$s.x
+  $y = [int]$s.y
+  $w = [int]$s.width
+  $h = [int]$s.height
+  $max = [bool]$s.maximized
+  if (-not [DshWin]::IsWindow($hwnd)) { Write-Log 'apply: window gone before restore'; return $false }
+  $ok = [DshWin]::Restore($hwnd, $x, $y, $w, $h, $max)
+  Write-Log ("apply {0}x{1} @ {2},{3} max={4} -> SetWindowPlacement={5}" -f $w, $h, $x, $y, $max, $ok)
+  if (-not $ok) { return $false }
+  Start-Sleep -Milliseconds 150
+  if (-not [DshWin]::Verify($hwnd, $x, $y, $w, $h, $max)) {
+    Write-Log 'apply: verification failed (geometry or show state did not match)'
+    return $false
+  }
+  return $true
 }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -144,6 +174,10 @@ function Test-KeeperPid($rec) {
   $proc = Get-CimInstance Win32_Process -Filter ("ProcessId=" + [int]$rec.pid) -ErrorAction SilentlyContinue
   if (-not $proc) { return $false }
   if ($proc.CommandLine -notlike '*window-keeper.ps1*') { return $false }
+  if ($null -ne $rec.startedAt) {
+    $procEpoch = [int64]([DateTimeOffset]$proc.CreationDate).ToUnixTimeSeconds()
+    if ([math]::Abs($procEpoch - [int64]$rec.startedAt) -gt 3) { return $false }
+  }
   return $true
 }
 
@@ -157,7 +191,7 @@ if (Test-KeeperPid $existing) {
   exit 0
 }
 
-$startedAt = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+$startedAt = [int64]([DateTimeOffset](Get-Process -Id $PID).StartTime).ToUnixTimeSeconds()
 $record = [ordered]@{ pid = $PID; startedAt = $startedAt; script = $PSCommandPath }
 ($record | ConvertTo-Json) | Set-Content -Path $PidFile -Encoding UTF8
 Write-Log ("keeper started (pid $PID)")
