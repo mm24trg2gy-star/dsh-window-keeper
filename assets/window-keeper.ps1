@@ -132,7 +132,8 @@ if ($Apply) {
   if ($hwnd -eq [IntPtr]::Zero) { Write-Log 'apply: window not found'; exit 1 }
   $s = Read-State
   if (-not (State-Valid $s)) { Write-Log 'apply: no valid state'; exit 2 }
-  Apply-State $hwnd $s
+  $applied = Apply-State $hwnd $s
+  if (-not $applied) { Write-Log 'apply: MoveWindow failed'; exit 3 }
   exit 0
 }
 
