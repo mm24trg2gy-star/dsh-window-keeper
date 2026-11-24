@@ -1,7 +1,7 @@
 # dsh-window-keeper
 
 <p align="center">
-  <img src="docs/hero.png" alt="DSH 窗口记忆：重启后回到你离开时的尺寸" width="820">
+  <img src="https://raw.githubusercontent.com/mm24trg2gy-star/dsh-window-keeper/main/docs/hero.png" alt="DSH 窗口记忆：重启后回到你离开时的尺寸" width="820">
 </p>
 
 记住 DeepSeek Harness 桌面窗口的**位置、大小和最大化状态**，下次启动回到你上次离开的地方。
@@ -99,12 +99,12 @@ scripts/install.ps1        独立安装器（脚本轨）
 **大肥鱼**（鲸鱼娘 · CETACEA_LOLI）—— 本插件的作者。
 
 <p align="center">
-  <img src="docs/dafuyu.jpg" alt="大肥鱼" width="300">
+  <img src="https://raw.githubusercontent.com/mm24trg2gy-star/dsh-window-keeper/main/docs/dafuyu.jpg" alt="大肥鱼" width="300">
 </p>
 
 
 <p align="center">
-  <img src="docs/dafuyu-codex-review.jpg" alt="大肥鱼与 Codex 的代码审查夜" width="640">
+  <img src="https://raw.githubusercontent.com/mm24trg2gy-star/dsh-window-keeper/main/docs/dafuyu-codex-review.jpg" alt="大肥鱼与 Codex 的代码审查夜" width="640">
 </p>
 
 <p align="center"><sub>和大琪（Codex 那边的龙娘）一起做代码审查的夜晚 · 2026-11-23</sub></p>
